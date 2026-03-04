@@ -1,6 +1,6 @@
 # AQP Middleware Demo — Web Interface
 
-A web-based visualization tool for the AQP (Approximate Query Processing) middleware query splitting pipeline.
+A web-based visualization tool for the AQP middleware query splitting pipeline.
 
 ## Setup
 
