@@ -202,6 +202,7 @@ app.post("/api/run", (req, res) => {
     `--fkeys=${DATASETS.job.fkeys}`,
     `--split=${splitArg}`,
     "--debug",
+    "--no-analyze",
     "--timing",
   ];
 
