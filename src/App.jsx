@@ -893,7 +893,7 @@ export default function App() {
                               d.error ? <div className="run-error">{d.error}</div>
                               : compDim === "integration" ? (
                                 isCombOn && d.combinedSql ? (
-                                  <div style={{ maxHeight: "270px", overflowY: "auto" }}>
+                                  <div style={{ maxHeight: "250px", overflowY: "auto" }}>
                                     <ScenarioPipeline data={d} activeNode={scenarioNode} setActiveNode={setScenarioNode}
                                       useCombineArrow={true}
                                       hideResult hideTiming />
@@ -903,7 +903,7 @@ export default function App() {
                                     </div>
                                   </div>
                                 ) : (
-                                  <div style={{ maxHeight: "270px", overflowY: "auto" }}>
+                                  <div style={{ maxHeight: "250px", overflowY: "auto" }}>
                                     <ScenarioPipeline data={d} activeNode={scenarioNode} setActiveNode={setScenarioNode}
                                       useCombineArrow={false}
                                       hideResult hideTiming />
