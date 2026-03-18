@@ -771,7 +771,7 @@ export default function App() {
           ) : activeTab === "Comparison" ? (() => {
             const ENGINE_LABELS = {"duckdb":"DuckDB","postgresql":"PostgreSQL","umbra":"Umbra","mariadb":"MariaDB","opengauss":"OpenGauss"};
             const STRAT_LABELS = {"relation-center":"FK-Center","entity-center":"PK-Center","min-subquery":"Min-Subquery","node-based":"Node-Based"};
-            const INTEG_LABEL = (i) => `CE ${i.ce ? "On" : "Off"} · Combiner ${i.comb ? "On" : "Off"}`;
+            const INTEG_LABEL = (i) => `CE ${i.ce ? "On" : "Off"} · ${i.comb ? "Combined" : "Splitted"}`;
             const labelA = compDim === "engines" ? ENGINE_LABELS[compEngineA]
               : compDim === "strategies" ? STRAT_LABELS[compStrategyA] : INTEG_LABEL(compIntegrationA);
             const labelB = compDim === "engines" ? ENGINE_LABELS[compEngineB]
@@ -780,9 +780,8 @@ export default function App() {
             const combB = compDim === "integration" ? compIntegrationB.comb : compIntegration.comb;
             return (
             <div className="comparison-layout">
-              {/* 3 config boxes — click to select compare dimension */}
               {/* 3-column grid: tabs on top, dropdowns below aligned */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0", marginBottom: "4px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: compDim === "integration" ? "1fr 1fr 2fr" : compDim === "engines" ? "2fr 1fr 1fr" : "1fr 2fr 1fr", gap: "0", marginBottom: "4px" }}>
                 {[["engines","DB Systems"],["strategies","AQP Strategies"],["integration","Integration Level"]].map(([key,label]) => (
                   <button key={key} onClick={() => { setCompDim(key); setHasRun(false); }}
                     style={{
@@ -845,27 +844,27 @@ export default function App() {
                   <div style={{ display: "flex", gap: "3px", alignItems: "center" }}>
                     <select className="field-select" value={`${compIntegrationA.ce},${compIntegrationA.comb}`} style={{ flex: 1 }}
                       onChange={(e) => { const [ce,comb] = e.target.value.split(",").map(v=>v==="true"); setCompIntegrationA({ce,comb}); setHasRun(false); }}>
-                      <option value="true,false">CE On · Combiner Off</option>
-                      <option value="true,true">CE On · Combiner On</option>
-                      <option value="false,false">CE Off · Combiner Off</option>
-                      <option value="false,true">CE Off · Combiner On</option>
+                      <option value="true,false">CE On · Splitted</option>
+                      <option value="true,true">CE On · Combined</option>
+                      <option value="false,false">CE Off · Splitted</option>
+                      <option value="false,true">CE Off · Combined</option>
                     </select>
                     <span style={{ color: "var(--ink-muted)", fontSize: "9px" }}>vs</span>
                     <select className="field-select" value={`${compIntegrationB.ce},${compIntegrationB.comb}`} style={{ flex: 1 }}
                       onChange={(e) => { const [ce,comb] = e.target.value.split(",").map(v=>v==="true"); setCompIntegrationB({ce,comb}); setHasRun(false); }}>
-                      <option value="true,false">CE On · Combiner Off</option>
-                      <option value="true,true">CE On · Combiner On</option>
-                      <option value="false,false">CE Off · Combiner Off</option>
-                      <option value="false,true">CE Off · Combiner On</option>
+                      <option value="true,false">CE On · Splitted</option>
+                      <option value="true,true">CE On · Combined</option>
+                      <option value="false,false">CE Off · Splitted</option>
+                      <option value="false,true">CE Off · Combined</option>
                     </select>
                   </div>
                 ) : (
                   <select className="field-select" value={`${compIntegration.ce},${compIntegration.comb}`} style={{ opacity: 0.6 }}
                     onChange={(e) => { const [ce,comb] = e.target.value.split(",").map(v=>v==="true"); setCompIntegration({ce,comb}); setHasRun(false); }}>
-                    <option value="true,false">CE On · Combiner Off</option>
-                    <option value="true,true">CE On · Combiner On</option>
-                    <option value="false,false">CE Off · Combiner Off</option>
-                    <option value="false,true">CE Off · Combiner On</option>
+                    <option value="true,false">CE On · Splitted</option>
+                    <option value="true,true">CE On · Combined</option>
+                    <option value="false,false">CE Off · Splitted</option>
+                    <option value="false,true">CE Off · Combined</option>
                   </select>
                 )}
               </div>
@@ -889,12 +888,12 @@ export default function App() {
                         return (
                         <div key={idx} className="comp-ab-col">
                           <div className="comp-ab-label">{idx === 0 ? labelA : labelB}</div>
-                          <div style={{ padding: "10px" }}>
+                          <div style={{ padding: "4px 6px" }}>
                             {d ? (
                               d.error ? <div className="run-error">{d.error}</div>
                               : compDim === "integration" ? (
                                 isCombOn && d.combinedSql ? (
-                                  <div style={{ maxHeight: "300px", overflowY: "auto" }}>
+                                  <div style={{ maxHeight: "270px", overflowY: "auto" }}>
                                     <ScenarioPipeline data={d} activeNode={scenarioNode} setActiveNode={setScenarioNode}
                                       useCombineArrow={true}
                                       hideResult hideTiming />
@@ -904,7 +903,7 @@ export default function App() {
                                     </div>
                                   </div>
                                 ) : (
-                                  <div style={{ maxHeight: "300px", overflowY: "auto" }}>
+                                  <div style={{ maxHeight: "270px", overflowY: "auto" }}>
                                     <ScenarioPipeline data={d} activeNode={scenarioNode} setActiveNode={setScenarioNode}
                                       useCombineArrow={false}
                                       hideResult hideTiming />
