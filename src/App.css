@@ -1060,18 +1060,14 @@ body {
 
 .comp-bottom-row {
   display: flex;
+  flex-direction: column;
   gap: 6px;
-  align-items: stretch;
 }
 
 .comp-shared-result {
-  flex: 1;
+  width: 100%;
   min-width: 0;
   padding: 0;
-}
-
-.comp-shared-result:last-child {
-  flex: 1.6;
 }
 
 /* ─── Scrollbar ──────────────────────────────────────────────────────────── */

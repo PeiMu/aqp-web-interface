@@ -209,44 +209,38 @@ function ScenarioPipeline({ data, activeNode, setActiveNode, useCombineArrow = f
       {!hideTiming && (
         <div className="perf-section">
           <div className="perf-box">
-            <div className="perf-row">
-              {!hideResult && (
-                <div className="perf-left">
-                  {data.output.rows.length > 0 && (
-                    <div className="perf-result-box">
-                      <div className="perf-label">Query Result:</div>
-                      <div className="perf-table-wrap">
-                        <table className="perf-table">
-                          <thead>
-                            <tr>
-                              {data.output.columns.length > 0
-                                ? data.output.columns.map((c, i) => <th key={i}>{c}</th>)
-                                : data.output.rows[0].map((_, i) => <th key={i}>col {i + 1}</th>)}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {data.output.rows.slice(0, 5).map((row, i) => (
-                              <tr key={i}>{row.map((val, j) => <td key={j}>{val}</td>)}</tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
+            {!hideResult && data.output.rows.length > 0 && (
+              <div className="perf-result-box">
+                <div className="perf-label">Query Result:</div>
+                <div className="perf-table-wrap">
+                  <table className="perf-table">
+                    <thead>
+                      <tr>
+                        {data.output.columns.length > 0
+                          ? data.output.columns.map((c, i) => <th key={i}>{c}</th>)
+                          : data.output.rows[0].map((_, i) => <th key={i}>col {i + 1}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.output.rows.slice(0, 5).map((row, i) => (
+                        <tr key={i}>{row.map((val, j) => <td key={j}>{val}</td>)}</tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-              )}
-              {data.timing && (
-                <div className={hideResult ? "perf-left" : "perf-right"}>
-                  <div className="perf-label">Timing Breakdown:</div>
-                  <div className="perf-timing-grid">
-                    <span>Execution</span><span>{data.timing.execution?.toFixed(2)} ms</span>
-                    <span>Overhead</span><span>{data.timing.overhead?.toFixed(2)} ms</span>
-                    <span className="perf-timing-total">Total</span>
-                    <span className="perf-timing-total">{data.timing.total?.toFixed(2)} ms</span>
-                  </div>
+              </div>
+            )}
+            {data.timing && (
+              <div>
+                <div className="perf-label">Timing Breakdown:</div>
+                <div className="perf-timing-grid">
+                  <span>Execution</span><span>{data.timing.execution?.toFixed(2)} ms</span>
+                  <span>Middleware Overhead</span><span>{data.timing.overhead?.toFixed(2)} ms</span>
+                  <span className="perf-timing-total">Total</span>
+                  <span className="perf-timing-total">{data.timing.total?.toFixed(2)} ms</span>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -741,7 +735,7 @@ export default function App() {
                               <div className="perf-table-wrap">
                                 <table className="perf-table">
                                   <thead><tr>
-                                    {["Execution", "Overhead", "Total"].map((c,i) => (
+                                    {["Execution", "Middleware Overhead", "Total"].map((c,i) => (
                                       <th key={i} style={c === "Total" ? { fontWeight: 700 } : {}}>{c}</th>
                                     ))}
                                   </tr></thead>
@@ -951,7 +945,7 @@ export default function App() {
                       {(() => {
                         const tA = compDataA?.timing;
                         const tB = compDataB?.timing;
-                        const cols = ["Execution", "Overhead", "Total"];
+                        const cols = ["Execution", "Middleware Overhead", "Total"];
                         const valsA = [tA?.execution, tA?.overhead, tA?.total];
                         const valsB = [tB?.execution, tB?.overhead, tB?.total];
                         return (tA || tB) ? (
@@ -1020,48 +1014,41 @@ export default function App() {
               {/* Performance section */}
               <div className="perf-section">
                 <div className="perf-box">
-                  <div className="perf-row">
-                    {/* Left: Query Result + Summary */}
-                    <div className="perf-left">
-                      {data.output.rows.length > 0 && (
-                        <div className="perf-result-box">
-                          <div className="perf-label">Query Result:</div>
-                          <div className="perf-table-wrap">
-                            <table className="perf-table">
-                              <thead>
-                                <tr>
-                                  {data.output.columns.length > 0
-                                    ? data.output.columns.map((c, i) => <th key={i}>{c}</th>)
-                                    : data.output.rows[0].map((_, i) => <th key={i}>col {i + 1}</th>)
-                                  }
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {data.output.rows.slice(0, 5).map((row, i) => (
-                                  <tr key={i}>
-                                    {row.map((val, j) => <td key={j}>{val}</td>)}
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Right: Timing Breakdown */}
-                    {data.timing && (
-                      <div className="perf-right">
-                        <div className="perf-label">Timing Breakdown:</div>
-                        <div className="perf-timing-grid">
-                          <span>Execution</span><span>{data.timing.execution?.toFixed(2)} ms</span>
-                          <span>Overhead</span><span>{data.timing.overhead?.toFixed(2)} ms</span>
-                          <span className="perf-timing-total">Total</span>
-                          <span className="perf-timing-total">{data.timing.total?.toFixed(2)} ms</span>
-                        </div>
+                  {data.output.rows.length > 0 && (
+                    <div className="perf-result-box">
+                      <div className="perf-label">Query Result:</div>
+                      <div className="perf-table-wrap">
+                        <table className="perf-table">
+                          <thead>
+                            <tr>
+                              {data.output.columns.length > 0
+                                ? data.output.columns.map((c, i) => <th key={i}>{c}</th>)
+                                : data.output.rows[0].map((_, i) => <th key={i}>col {i + 1}</th>)
+                              }
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {data.output.rows.slice(0, 5).map((row, i) => (
+                              <tr key={i}>
+                                {row.map((val, j) => <td key={j}>{val}</td>)}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
+                  {data.timing && (
+                    <div>
+                      <div className="perf-label">Timing Breakdown:</div>
+                      <div className="perf-timing-grid">
+                        <span>Execution</span><span>{data.timing.execution?.toFixed(2)} ms</span>
+                        <span>Middleware Overhead</span><span>{data.timing.overhead?.toFixed(2)} ms</span>
+                        <span className="perf-timing-total">Total</span>
+                        <span className="perf-timing-total">{data.timing.total?.toFixed(2)} ms</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
