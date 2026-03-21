@@ -278,7 +278,7 @@ export default function App() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [activeNode, setActiveNode] = useState(null);
-  const [activeTab, setActiveTab] = useState("Pipeline");
+  const [activeTab, setActiveTab] = useState("Demo Scenarios");
   const [activeEngine, setActiveEngine] = useState("DuckDB");
   const [activeStrategy, setActiveStrategy] = useState("FK-Center");
   const [activeOption, setActiveOption] = useState("CU On | Combiner On");
@@ -378,7 +378,7 @@ export default function App() {
         } catch (e) { setEng2Data({ error: e.message }); }
         setActiveNode(null);
         setHasRun(true);
-      } else if (activeTab === "Comparison") {
+      } else if (activeTab === "Demo Scenarios") {
         const getCompParams = (side) => {
           const eng = compDim === "engines" ? (side === "A" ? compEngineA : compEngineB) : compEngine;
           const strat = compDim === "strategies" ? (side === "A" ? compStrategyA : compStrategyB) : compStrategy;
@@ -410,9 +410,9 @@ export default function App() {
     <div className="app">
       {/* ── Header ── */}
       <header className="header">
-        <h1 className="header-title">AQP Middleware Demo</h1>
+        <h1 className="header-title" style={{ cursor: "pointer" }} onClick={() => setActiveTab("Home")}>AQPHub</h1>
         <div className="header-tabs">
-          {["Pipeline","Engines","Strategies","Options","Engine2","Comparison"].map(tab => (
+          {["Demo Scenarios"].map(tab => (
             <button key={tab}
               className={`htab ${activeTab === tab ? "htab-active" : ""}`}
               onClick={() => {
@@ -430,11 +430,11 @@ export default function App() {
       {/* ── Body ── */}
       <div className="body-layout">
         {/* ── Left: Config ── */}
-        <aside className="config-panel">
+        {activeTab !== "Home" && <aside className="config-panel">
           <div className="config-box">
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
               <h2 className="config-box-title" style={{ marginBottom: 0 }}>Configuration</h2>
-              {activeTab !== "Comparison" && activeTab !== "Engine2" && (
+              {activeTab !== "Demo Scenarios" && activeTab !== "Engine2" && (
                 <button className="run-btn" onClick={handleRun} disabled={isRunning}
                   style={{ marginTop: 0, width: "auto", padding: "5px 40px", fontSize: "10px" }}>
                   {isRunning ? "Running..." : "Run Query"}
@@ -467,7 +467,7 @@ export default function App() {
                   ))}
                 </select>
               </div>
-              {activeTab !== "Comparison" && activeTab !== "Engine2" && (
+              {activeTab !== "Demo Scenarios" && activeTab !== "Engine2" && (
                 <div className="select-col" style={{ flex: 1 }}>
                   <label className="field-label">Scenario</label>
                   <select className="field-select" value={activeTab}
@@ -493,14 +493,14 @@ export default function App() {
               value={customSql}
               onChange={(e) => setCustomSql(e.target.value)} />
 
-            {(activeTab === "Comparison" || activeTab === "Engine2") && (
+            {(activeTab === "Demo Scenarios" || activeTab === "Engine2") && (
               <button className="run-btn" onClick={handleRun} disabled={isRunning}
                 style={{ marginTop: "2px" }}>
                 {isRunning ? "Running..." : "Run Query"}
               </button>
             )}
 
-            {activeTab !== "Comparison" && activeTab !== "Engine2" && (
+            {activeTab !== "Demo Scenarios" && activeTab !== "Engine2" && (
               <div className="select-row">
                 {/* Engine — show on Pipeline, Strategies, Options */}
                 {activeTab !== "Engines" && (
@@ -530,7 +530,7 @@ export default function App() {
             )}
 
             {/* Options — hide on Options, Comparison, and Engine2 tabs */}
-            {activeTab !== "Options" && activeTab !== "Comparison" && activeTab !== "Engine2" && (
+            {activeTab !== "Options" && activeTab !== "Demo Scenarios" && activeTab !== "Engine2" && (
               <div style={{ display: "flex", gap: "6px", marginTop: "8px" }}>
                 <button
                   type="button"
@@ -564,7 +564,7 @@ export default function App() {
             <div className="run-error">{error}</div>
           )}
 
-        </aside>
+        </aside>}
 
         {/* ── Right panel ── */}
         <main className="pipeline-panel">
@@ -761,7 +761,7 @@ export default function App() {
                 )}
               </div>
             </div>
-          ) : activeTab === "Comparison" ? (() => {
+          ) : activeTab === "Demo Scenarios" ? (() => {
             const ENGINE_LABELS = {"duckdb":"DuckDB","postgresql":"PostgreSQL","umbra":"Umbra","mariadb":"MariaDB","opengauss":"OpenGauss"};
             const STRAT_LABELS = {"relation-center":"FK-Center","entity-center":"PK-Center","min-subquery":"Min-Subquery","node-based":"Node-Based"};
             const INTEG_LABEL = (i) => `CU ${i.ce ? "On" : "Off"} · ${i.comb ? "Combined" : "Splitted"}`;
@@ -1055,30 +1055,9 @@ export default function App() {
             </div>
             );
           })() : (
-            <div className="empty-state">
-              {isRunning ? (
-                <>
-                  <div className="empty-icon spin">&#9881;</div>
-                  <div className="empty-title">Processing query...</div>
-                </>
-              ) : (
-                <>
-                  {error ? (
-                    <>
-                      <div className="empty-icon">&#9888;</div>
-                      <div className="empty-title">Error</div>
-                      <div className="empty-text">{error}</div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="empty-title">Pipeline Visualization</div>
-                      <div className="empty-text">
-                        Select parameters and click <strong>Run Query</strong> to see the query splitting pipeline.
-                      </div>
-                    </>
-                  )}
-                </>
-              )}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", height: "100%", paddingTop: "20px", background: "#fff" }}>
+              <h2 style={{ fontSize: "16px", fontWeight: 800, marginBottom: "12px", color: "var(--ink)" }}>A Portable Middleware for Plan-Based Adaptive Query Processing</h2>
+              <img src="/architecture.jpg" alt="A Portable Middleware for Plan-Based Adaptive Query Processing" style={{ maxWidth: "90%", maxHeight: "calc(100vh - 120px)", objectFit: "contain" }} />
             </div>
           )}
         </main>
