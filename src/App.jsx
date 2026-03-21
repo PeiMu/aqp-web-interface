@@ -239,9 +239,8 @@ function ScenarioPipeline({ data, activeNode, setActiveNode, useCombineArrow = f
                 <div className={hideResult ? "perf-left" : "perf-right"}>
                   <div className="perf-label">Timing Breakdown:</div>
                   <div className="perf-timing-grid">
-                    <span>SQL Execution</span><span>{data.timing.sqlExecution?.toFixed(2)} ms</span>
-                    <span>Split Time</span><span>{data.timing.splitTime?.toFixed(2)} ms</span>
-                    <span>Others</span><span>{data.timing.others?.toFixed(2)} ms</span>
+                    <span>Execution</span><span>{data.timing.execution?.toFixed(2)} ms</span>
+                    <span>Overhead</span><span>{data.timing.overhead?.toFixed(2)} ms</span>
                     <span className="perf-timing-total">Total</span>
                     <span className="perf-timing-total">{data.timing.total?.toFixed(2)} ms</span>
                   </div>
@@ -666,7 +665,7 @@ export default function App() {
             <div className="comparison-layout">
               {/* 3-column tab buttons */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0", marginBottom: "4px" }}>
-                {[["engines","DB Systems"],["strategies","AQP Strategies"],["integration","Integration Level"]].map(([key,label]) => (
+                {[["engines","DB Systems"],["strategies","AQP Strategies"],["integration","Integration Levels"]].map(([key,label]) => (
                   <button key={key} onClick={() => { setEng2Tab(key); setHasRun(false); }}
                     style={{
                       padding: "4px 8px", fontSize: "10px", fontWeight: 700, cursor: "pointer",
@@ -742,14 +741,14 @@ export default function App() {
                               <div className="perf-table-wrap">
                                 <table className="perf-table">
                                   <thead><tr>
-                                    {["SQL Execution", "Split Time", "Others", "Total"].map((c,i) => (
+                                    {["Execution", "Overhead", "Total"].map((c,i) => (
                                       <th key={i} style={c === "Total" ? { fontWeight: 700 } : {}}>{c}</th>
                                     ))}
                                   </tr></thead>
                                   <tbody>
                                     <tr>
-                                      {[eng2Data.timing.sqlExecution, eng2Data.timing.splitTime, eng2Data.timing.others, eng2Data.timing.total].map((v,i) => (
-                                        <td key={i} style={i === 3 ? { fontWeight: 700 } : {}}>{v != null ? `${v.toFixed(2)} ms` : "—"}</td>
+                                      {[eng2Data.timing.execution, eng2Data.timing.overhead, eng2Data.timing.total].map((v,i) => (
+                                        <td key={i} style={i === 2 ? { fontWeight: 700 } : {}}>{v != null ? `${v.toFixed(2)} ms` : "—"}</td>
                                       ))}
                                     </tr>
                                   </tbody>
@@ -782,7 +781,7 @@ export default function App() {
             <div className="comparison-layout">
               {/* 3-column grid: tabs on top, dropdowns below aligned */}
               <div style={{ display: "grid", gridTemplateColumns: compDim === "integration" ? "1fr 1fr 2fr" : compDim === "engines" ? "2fr 1fr 1fr" : "1fr 2fr 1fr", gap: "0", marginBottom: "4px" }}>
-                {[["engines","DB Systems"],["strategies","AQP Strategies"],["integration","Integration Level"]].map(([key,label]) => (
+                {[["engines","DB Systems"],["strategies","AQP Strategies"],["integration","Integration Levels"]].map(([key,label]) => (
                   <button key={key} onClick={() => { setCompDim(key); setHasRun(false); }}
                     style={{
                       padding: "4px 8px", fontSize: "10px", fontWeight: 700, cursor: "pointer",
@@ -952,9 +951,9 @@ export default function App() {
                       {(() => {
                         const tA = compDataA?.timing;
                         const tB = compDataB?.timing;
-                        const cols = ["SQL Execution", "Split Time", "Others", "Total"];
-                        const valsA = [tA?.sqlExecution, tA?.splitTime, tA?.others, tA?.total];
-                        const valsB = [tB?.sqlExecution, tB?.splitTime, tB?.others, tB?.total];
+                        const cols = ["Execution", "Overhead", "Total"];
+                        const valsA = [tA?.execution, tA?.overhead, tA?.total];
+                        const valsB = [tB?.execution, tB?.overhead, tB?.total];
                         return (tA || tB) ? (
                           <div className="comp-shared-result">
                             <div className="perf-label">Timing Breakdown:</div>
@@ -962,8 +961,8 @@ export default function App() {
                               <table className="perf-table">
                                 <thead><tr><th></th>{cols.map((c,i) => <th key={i} style={c === "Total" ? { fontWeight: 700 } : {}}>{c}</th>)}</tr></thead>
                                 <tbody>
-                                  <tr><td>{labelA}</td>{valsA.map((v,i) => <td key={i} style={i === 3 ? { fontWeight: 700 } : {}}>{v != null ? `${v.toFixed(2)} ms` : "—"}</td>)}</tr>
-                                  <tr><td>{labelB}</td>{valsB.map((v,i) => <td key={i} style={i === 3 ? { fontWeight: 700 } : {}}>{v != null ? `${v.toFixed(2)} ms` : "—"}</td>)}</tr>
+                                  <tr><td>{labelA}</td>{valsA.map((v,i) => <td key={i} style={i === 2 ? { fontWeight: 700 } : {}}>{v != null ? `${v.toFixed(2)} ms` : "—"}</td>)}</tr>
+                                  <tr><td>{labelB}</td>{valsB.map((v,i) => <td key={i} style={i === 2 ? { fontWeight: 700 } : {}}>{v != null ? `${v.toFixed(2)} ms` : "—"}</td>)}</tr>
                                 </tbody>
                               </table>
                             </div>
@@ -1055,9 +1054,8 @@ export default function App() {
                       <div className="perf-right">
                         <div className="perf-label">Timing Breakdown:</div>
                         <div className="perf-timing-grid">
-                          <span>SQL Execution</span><span>{data.timing.sqlExecution?.toFixed(2)} ms</span>
-                                <span>Split Time</span><span>{data.timing.splitTime?.toFixed(2)} ms</span>
-                          <span>Others</span><span>{data.timing.others?.toFixed(2)} ms</span>
+                          <span>Execution</span><span>{data.timing.execution?.toFixed(2)} ms</span>
+                          <span>Overhead</span><span>{data.timing.overhead?.toFixed(2)} ms</span>
                           <span className="perf-timing-total">Total</span>
                           <span className="perf-timing-total">{data.timing.total?.toFixed(2)} ms</span>
                         </div>

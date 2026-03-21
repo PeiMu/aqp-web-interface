@@ -298,14 +298,11 @@ app.post("/api/run", (req, res) => {
           sumUpdate += mainGroupVals[base + 4] || 0;
         }
 
-        /* Categories per Pei's updated formula:
-           preprocess included in SQL Execution (contains DuckDB optimizer for DuckDB engine) */
-        const sqlExecution = preprocess + sumExecute + finalExe;
-        const fetchTuples = sumMaterialize;
-        const splitTime = sumExtract + sumUpdate;
-        const others = total - sqlExecution - fetchTuples - splitTime;
+        /* Execution = DB work, Overhead = everything else */
+        const execution = preprocess + sumExecute + finalExe;
+        const overhead = total - execution;
 
-        parsed.timing = { sqlExecution, fetchTuples, splitTime, others, total };
+        parsed.timing = { execution, overhead, total };
       } catch {}
       /* Read original SQL from file for display */
       if (!parsed.originalSql) {
