@@ -299,7 +299,7 @@ app.post("/api/run", (req, res) => {
         }
 
         /* Execution = DB work, Overhead = everything else */
-        const execution = preprocess + sumExecute + finalExe;
+        const execution = preprocess + sumExecute + sumMaterialize + finalExe;
         const overhead = total - execution;
 
         parsed.timing = { execution, overhead, total };
