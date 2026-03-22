@@ -410,7 +410,7 @@ export default function App() {
     <div className="app">
       {/* ── Header ── */}
       <header className="header">
-        <h1 className="header-title" style={{ cursor: activeTab !== "Home" ? "pointer" : "default" }} onClick={() => { if (activeTab !== "Home") setActiveTab("Home"); }}>AQPHub</h1>
+        <h1 className="header-title" style={{ cursor: activeTab !== "Home" ? "pointer" : "default" }} onClick={() => { if (activeTab !== "Home") { setActiveTab("Home"); document.activeElement?.blur(); } }}>AQPHub</h1>
         <div className="header-url">localhost:5173/aqp-middleware-demo</div>
       </header>
 

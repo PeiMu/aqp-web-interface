@@ -98,6 +98,9 @@ body {
   color: var(--ink);
   letter-spacing: -0.02em;
   white-space: nowrap;
+  outline: none;
+  user-select: none;
+  caret-color: transparent;
 }
 
 .header-tabs {
