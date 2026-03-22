@@ -278,7 +278,7 @@ export default function App() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [activeNode, setActiveNode] = useState(null);
-  const [activeTab, setActiveTab] = useState("Demo Scenarios");
+  const [activeTab, setActiveTab] = useState("Home");
   const [activeEngine, setActiveEngine] = useState("DuckDB");
   const [activeStrategy, setActiveStrategy] = useState("FK-Center");
   const [activeOption, setActiveOption] = useState("CU On | Combiner On");
@@ -410,20 +410,7 @@ export default function App() {
     <div className="app">
       {/* ── Header ── */}
       <header className="header">
-        <h1 className="header-title" style={{ cursor: "pointer" }} onClick={() => setActiveTab("Home")}>AQPHub</h1>
-        <div className="header-tabs">
-          {["Demo Scenarios"].map(tab => (
-            <button key={tab}
-              className={`htab ${activeTab === tab ? "htab-active" : ""}`}
-              onClick={() => {
-                setActiveTab(tab);
-                if (tab === "Engines") setSplitStrategy("relation-center");
-                if (tab === "Strategies") setEngine("duckdb");
-              }}>
-              {tab}
-            </button>
-          ))}
-        </div>
+        <h1 className="header-title" style={{ cursor: activeTab !== "Home" ? "pointer" : "default" }} onClick={() => { if (activeTab !== "Home") setActiveTab("Home"); }}>AQPHub</h1>
         <div className="header-url">localhost:5173/aqp-middleware-demo</div>
       </header>
 
@@ -1057,7 +1044,8 @@ export default function App() {
           })() : (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", height: "100%", paddingTop: "20px", background: "#fff" }}>
               <h2 style={{ fontSize: "16px", fontWeight: 800, marginBottom: "12px", color: "var(--ink)" }}>A Portable Middleware for Plan-Based Adaptive Query Processing</h2>
-              <img src="/architecture.jpg" alt="A Portable Middleware for Plan-Based Adaptive Query Processing" style={{ maxWidth: "90%", maxHeight: "calc(100vh - 120px)", objectFit: "contain" }} />
+              <img src="/architecture.png" alt="A Portable Middleware for Plan-Based Adaptive Query Processing" style={{ maxWidth: "90%", maxHeight: "calc(100vh - 200px)", objectFit: "contain" }} />
+              <button className="run-btn" style={{ marginTop: "20px" }} onClick={() => setActiveTab("Demo Scenarios")}>Demo Scenarios</button>
             </div>
           )}
         </main>
