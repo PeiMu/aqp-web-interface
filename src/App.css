@@ -247,6 +247,26 @@ body {
   box-shadow: 0 0 0 3px rgba(59, 108, 244, 0.1);
 }
 
+.sql-editor-wrap {
+  flex: 1;
+  min-height: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow-y: auto;
+}
+
+.sql-editor {
+  min-height: 100% !important;
+}
+
+.sql-editor textarea {
+  outline: none !important;
+}
+
+.sql-editor textarea:focus {
+  box-shadow: none !important;
+}
+
 .field-textarea {
   width: 100%;
   padding: 8px 10px;

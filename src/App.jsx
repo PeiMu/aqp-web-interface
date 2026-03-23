@@ -1,4 +1,8 @@
 import { useState, useEffect } from "react";
+import Editor from "react-simple-code-editor";
+import Prism from "prismjs";
+import "prismjs/components/prism-sql";
+import "prismjs/themes/prism.css";
 import "./App.css";
 
 
@@ -475,10 +479,23 @@ export default function App() {
             </div>
 
             <label className="field-label">Vanilla SQL</label>
-            <textarea className="field-textarea" rows={activeTab === "Pipeline" ? 18 : 20}
-              placeholder="Enter your custom query here..."
-              value={customSql}
-              onChange={(e) => setCustomSql(e.target.value)} />
+            <div className="sql-editor-wrap">
+              <Editor
+                value={customSql}
+                onValueChange={(code) => setCustomSql(code)}
+                highlight={(code) => Prism.highlight(code, Prism.languages.sql, "sql")}
+                padding={8}
+                className="sql-editor"
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  fontSize: "9.5px",
+                  lineHeight: 1.55,
+                  fontWeight: 600,
+                  minHeight: "200px",
+                }}
+                placeholder="Enter your custom query here..."
+              />
+            </div>
 
             {(activeTab === "Demo Scenarios" || activeTab === "Engine2") && (
               <button className="run-btn" onClick={handleRun} disabled={isRunning}
