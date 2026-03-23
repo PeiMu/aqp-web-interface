@@ -1061,7 +1061,7 @@ export default function App() {
           })() : (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", height: "100%", paddingTop: "20px", background: "#fff" }}>
               <h2 style={{ fontSize: "16px", fontWeight: 800, marginBottom: "12px", color: "var(--ink)" }}>A Portable Middleware for Plan-Based Adaptive Query Processing</h2>
-              <img src="/architecture.png" alt="A Portable Middleware for Plan-Based Adaptive Query Processing" style={{ maxWidth: "90%", maxHeight: "calc(100vh - 200px)", objectFit: "contain" }} />
+              <img src="/architecture.png" alt="A Portable Middleware for Plan-Based Adaptive Query Processing" style={{ width: "80%", maxHeight: "calc(100vh - 150px)", objectFit: "contain" }} />
               <button className="run-btn" style={{ marginTop: "20px" }} onClick={() => setActiveTab("Demo Scenarios")}>Demo Scenarios</button>
             </div>
           )}

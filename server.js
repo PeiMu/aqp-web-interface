@@ -262,6 +262,9 @@ app.post("/api/run", (req, res) => {
         /* For Node-Based, convert_plan_to_IR is 0;
            for other strategies, swap preprocess and convert_plan_to_IR
            (the CSV outputs them in reversed order for all engines) */
+        console.log(`[DEBUG] engine=${engine}, split=${splitArg}`);
+        console.log(`[DEBUG] vals[3]=${vals[3]}, vals[4]=${vals[4]}`);
+        console.log(`[DEBUG] all CSV:`, vals.join(", "));
         if (splitArg === "nodebased") {
           convertPlanToIR = 0;
         } else {
