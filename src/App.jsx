@@ -65,6 +65,77 @@ function SqlBlock({ sql, fontSize = 10.5, tempColors = {} }) {
   );
 }
 
+/* ─── Plan Block (EXPLAIN ANALYZE output) ───────────────────────────────── */
+/* Rank colors for the top-3 bottleneck operators (#1 → #3). */
+const BOTTLENECK_COLORS = ["#DC2626", "#EA580C", "#CA8A04"];
+
+function PlanBlock({ text, fontSize = 10.5, maxHeight = 360 }) {
+  if (!text) {
+    return (
+      <div style={{ fontSize: 10.5, color: "var(--ink-muted)", fontStyle: "italic", padding: "4px 0" }}>
+        No plan available for this sub-query.
+      </div>
+    );
+  }
+
+  /* DuckDB prints each operator's own time as "(X.XXs)". Find the 3 largest
+     (>0) and highlight those exact timing tokens in the tree, graduated red →
+     orange → amber for #1 → #3. (Postgres/MariaDB use other formats, so they
+     just render plain — no false matches.) */
+  const timings = [];
+  const timeRe = /\(([\d.]+)s\)/g;
+  let tm;
+  while ((tm = timeRe.exec(text)) !== null) {
+    timings.push({ start: tm.index, end: tm.index + tm[0].length, value: parseFloat(tm[1]), raw: tm[1] });
+  }
+  const ranked = timings
+    .filter((t) => t.value > 0)
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 3);
+  const rankByStart = new Map(ranked.map((t, i) => [t.start, i]));
+
+  /* Walk the text, wrapping each ranked timing token in a colored span. */
+  const hits = timings.filter((t) => rankByStart.has(t.start)).sort((a, b) => a.start - b.start);
+  const parts = [];
+  let cursor = 0;
+  hits.forEach((h, i) => {
+    if (h.start > cursor) parts.push(text.slice(cursor, h.start));
+    parts.push(
+      <span key={i} style={{
+        background: BOTTLENECK_COLORS[rankByStart.get(h.start)], color: "#fff",
+        fontWeight: 800, borderRadius: "2px",
+      }}>{text.slice(h.start, h.end)}</span>
+    );
+    cursor = h.end;
+  });
+  if (cursor < text.length) parts.push(text.slice(cursor));
+
+  return (
+    <div>
+      {ranked.length > 0 && (
+        <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap", marginBottom: "4px", fontSize: "9px" }}>
+          <span style={{ color: "var(--ink-muted)", fontWeight: 700 }}>Top bottlenecks (self-time):</span>
+          {ranked.map((t, i) => (
+            <span key={i} style={{ background: BOTTLENECK_COLORS[i], color: "#fff", fontWeight: 800, padding: "0 5px", borderRadius: "3px" }}>
+              #{i + 1}, {t.raw}s
+            </span>
+          ))}
+        </div>
+      )}
+      <pre className="sql-block" style={{ fontSize, whiteSpace: "pre", overflow: "auto", maxHeight: `${maxHeight}px` }}>
+        <code>{parts}</code>
+      </pre>
+    </div>
+  );
+}
+
+/* ─── Round detail: SQL or EXPLAIN ANALYZE plan, per viewMode ────────────── */
+function RoundDetail({ round, viewMode, fontSize = 11, tempColors = {} }) {
+  return viewMode === "plan"
+    ? <PlanBlock text={round.plan} />
+    : <SqlBlock sql={round.subSql} fontSize={fontSize} tempColors={tempColors} />;
+}
+
 /* ─── Arrow components ───────────────────────────────────────────────────── */
 function ArrowRight({ color = "#94A3B8", dashed = false, width = 45 }) {
   return (
@@ -143,7 +214,7 @@ function CombinedSqlBox({ sql, tempColors }) {
 }
 
 /* ─── Scenario Pipeline View ─────────────────────────────────────────────── */
-function ScenarioPipeline({ data, activeNode, setActiveNode, useCombineArrow = false, hideResult = false, hideTiming = false }) {
+function ScenarioPipeline({ data, activeNode, setActiveNode, useCombineArrow = false, hideResult = false, hideTiming = false, viewMode = "sql" }) {
   if (!data) return null;
   if (data.error) return <div className="run-error">{data.error}</div>;
   if (!data.rounds || data.rounds.length === 0) return <div className="run-error">No pipeline data returned</div>;
@@ -195,7 +266,7 @@ function ScenarioPipeline({ data, activeNode, setActiveNode, useCombineArrow = f
         if (!round) return null;
         return (
           <div className="node-detail" style={{ borderColor: round.color, backgroundColor: `${round.color}10` }}>
-            <SqlBlock sql={round.subSql} fontSize={11} tempColors={tempColors} />
+            <RoundDetail round={round} viewMode={viewMode} fontSize={11} tempColors={tempColors} />
           </div>
         );
       })()}
@@ -282,6 +353,11 @@ export default function App() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [activeNode, setActiveNode] = useState(null);
+  const [viewMode, setViewMode] = useState("sql"); // "sql" | "plan" — Show Plan toggle
+  const [plansLoaded, setPlansLoaded] = useState(false); // current results carry EXPLAIN plans
+  const [vanillaPlan, setVanillaPlan] = useState("");        // EXPLAIN ANALYZE of the un-split query
+  const [vanillaPlanLoading, setVanillaPlanLoading] = useState(false);
+  const [vanillaPlanError, setVanillaPlanError] = useState(null);
   const [activeTab, setActiveTab] = useState("Home");
   const [activeEngine, setActiveEngine] = useState("DuckDB");
   const [activeStrategy, setActiveStrategy] = useState("FK-Center");
@@ -314,12 +390,36 @@ export default function App() {
       .catch(() => {});
   }, [selectedQuery]);
 
+  /* Fetch the vanilla (un-split) query's EXPLAIN ANALYZE plan automatically.
+     Debounced so editing the SQL doesn't fire a (costly) plan run per keystroke;
+     EXPLAIN ANALYZE actually executes the query on the engine. */
+  useEffect(() => {
+    if (!customSql || !customSql.trim()) { setVanillaPlan(""); setVanillaPlanError(null); return; }
+    const handle = setTimeout(() => {
+      setVanillaPlanLoading(true);
+      setVanillaPlanError(null);
+      fetch("/api/vanilla-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ engine, customSql, query: selectedQuery }),
+      })
+        .then(async (r) => {
+          const j = await r.json();
+          if (!r.ok) throw new Error(j.error || "Server error");
+          setVanillaPlan(j.plan || "");
+        })
+        .catch((e) => { setVanillaPlanError(e.message); setVanillaPlan(""); })
+        .finally(() => setVanillaPlanLoading(false));
+    }, 800);
+    return () => clearTimeout(handle);
+  }, [customSql, engine, selectedQuery]);
+
   /* Helper: run a single query and return parsed data */
-  const runOne = async (eng, split, ce = cardinalityEstimator, comb = mergeSubPlan) => {
+  const runOne = async (eng, split, ce = cardinalityEstimator, comb = mergeSubPlan, explain = false) => {
     const res = await fetch("/api/run", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ engine: eng, split, query: selectedQuery, customSql, cardinalityEstimator: ce, mergeSubPlan: comb }),
+      body: JSON.stringify({ engine: eng, split, query: selectedQuery, customSql, cardinalityEstimator: ce, mergeSubPlan: comb, explain }),
     });
     const json = await res.json();
     if (!res.ok) throw new Error(json.error || "Server error");
@@ -336,10 +436,11 @@ export default function App() {
     };
   };
 
-  const handleRun = async () => {
+  const handleRun = async (explain = viewMode === "plan") => {
     setIsRunning(true);
     setHasRun(false);
     setError(null);
+    setPlansLoaded(explain);
     setScenarioData({});
     setScenarioNode(null);
     try {
@@ -347,7 +448,7 @@ export default function App() {
         const engines = [["duckdb","DuckDB"],["postgresql","PostgreSQL"],["umbra","Umbra"],["mariadb","MariaDB"],["opengauss","OpenGauss"]];
         const results = {};
         for (const [eng, label] of engines) {
-          try { results[label] = await runOne(eng, splitStrategy); }
+          try { results[label] = await runOne(eng, splitStrategy, cardinalityEstimator, mergeSubPlan, explain); }
           catch (e) { results[label] = { error: e.message }; }
         }
         setScenarioData(results);
@@ -357,7 +458,7 @@ export default function App() {
           ["min-subquery","Min-Subquery"],["node-based","Node-Based"]];
         const results = {};
         for (const [split, label] of strategies) {
-          try { results[label] = await runOne(engine, split); }
+          try { results[label] = await runOne(engine, split, cardinalityEstimator, mergeSubPlan, explain); }
           catch (e) { results[label] = { error: e.message }; }
         }
         setScenarioData(results);
@@ -371,14 +472,14 @@ export default function App() {
         ];
         const results = {};
         for (const [label, ce, comb] of combos) {
-          try { results[label] = await runOne(engine, splitStrategy, ce, comb); }
+          try { results[label] = await runOne(engine, splitStrategy, ce, comb, explain); }
           catch (e) { results[label] = { error: e.message }; }
         }
         setScenarioData(results);
         setHasRun(true);
       } else if (activeTab === "Engine2") {
         try {
-          setEng2Data(await runOne(eng2Engine, eng2Strategy, eng2Integration.ce, eng2Integration.comb));
+          setEng2Data(await runOne(eng2Engine, eng2Strategy, eng2Integration.ce, eng2Integration.comb, explain));
         } catch (e) { setEng2Data({ error: e.message }); }
         setActiveNode(null);
         setHasRun(true);
@@ -391,14 +492,14 @@ export default function App() {
         };
         const pA = getCompParams("A");
         const pB = getCompParams("B");
-        try { setCompDataA(await runOne(pA.eng, pA.strat, pA.ce, pA.comb)); }
+        try { setCompDataA(await runOne(pA.eng, pA.strat, pA.ce, pA.comb, explain)); }
         catch (e) { setCompDataA({ error: e.message }); }
-        try { setCompDataB(await runOne(pB.eng, pB.strat, pB.ce, pB.comb)); }
+        try { setCompDataB(await runOne(pB.eng, pB.strat, pB.ce, pB.comb, explain)); }
         catch (e) { setCompDataB({ error: e.message }); }
         setActiveNode(null);
         setHasRun(true);
       } else {
-        const result = await runOne(engine, splitStrategy);
+        const result = await runOne(engine, splitStrategy, cardinalityEstimator, mergeSubPlan, explain);
         setData(result);
         setActiveNode(null);
         setHasRun(true);
@@ -409,6 +510,35 @@ export default function App() {
       setIsRunning(false);
     }
   };
+
+  /* Show Plan toggle — rendered directly under whichever "Run Query" button is
+     active. Flips every Sub-SQL box between SQL code and its EXPLAIN ANALYZE
+     plan; switching to plan mode lazily re-runs with --explain so normal runs
+     stay fast. Label names what clicking will show; clicking "Show SQL Code"
+     just restores the SQL (no re-run). */
+  const planToggleBtn = (
+    <button
+      className="run-btn"
+      disabled={isRunning}
+      title="Toggle each sub-query box between SQL code and its EXPLAIN ANALYZE plan"
+      onClick={() => {
+        if (viewMode === "sql") {
+          setViewMode("plan");
+          if (hasRun && !plansLoaded && !isRunning) handleRun(true);
+        } else {
+          setViewMode("sql");
+        }
+      }}
+      style={{
+        marginTop: "6px", marginBottom: "4px", width: "100%",
+        padding: "5px 0", fontSize: "10px",
+        background: viewMode === "plan" ? "#0D9488" : "var(--surface)",
+        color: viewMode === "plan" ? "#fff" : "#0D9488",
+        border: "2px solid #0D9488",
+      }}>
+      {viewMode === "sql" ? "Show Plan" : "Show SQL Code"}
+    </button>
+  );
 
   return (
     <div className="app">
@@ -426,12 +556,15 @@ export default function App() {
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
               <h2 className="config-box-title" style={{ marginBottom: 0 }}>Configuration</h2>
               {activeTab !== "Demo Scenarios" && activeTab !== "Engine2" && (
-                <button className="run-btn" onClick={handleRun} disabled={isRunning}
+                <button className="run-btn" onClick={() => handleRun()} disabled={isRunning}
                   style={{ marginTop: 0, width: "auto", padding: "5px 40px", fontSize: "10px" }}>
                   {isRunning ? "Running..." : "Run Query"}
                 </button>
               )}
             </div>
+
+            {/* Under the header "Run Query" (Pipeline / Engines / Strategies / Options) */}
+            {activeTab !== "Demo Scenarios" && activeTab !== "Engine2" && planToggleBtn}
 
             <div className="select-row">
               <div className="select-col" style={{ flex: "0 0 130px" }}>
@@ -497,12 +630,36 @@ export default function App() {
               />
             </div>
 
+            {/* Vanilla query EXPLAIN ANALYZE plan — fixed-size, scrollable box.
+                Fetched automatically (debounced) for the current query + engine. */}
+            <label className="field-label" style={{ marginTop: "8px", display: "flex", justifyContent: "space-between" }}>
+              <span>Vanilla Query Plan</span>
+              {vanillaPlanLoading && <span style={{ color: "var(--ink-muted)", fontWeight: 600 }}>loading…</span>}
+            </label>
+            <div style={{
+              border: "1px solid var(--border)", borderRadius: "var(--radius-md)",
+              background: "var(--surface-sunken)", padding: "8px",
+            }}>
+              {vanillaPlanError ? (
+                <div style={{ fontSize: "10px", color: "#DC2626", whiteSpace: "pre-wrap", minHeight: "60px" }}>{vanillaPlanError}</div>
+              ) : vanillaPlan ? (
+                <PlanBlock text={vanillaPlan} fontSize={9} maxHeight={220} />
+              ) : (
+                <div style={{ fontSize: "10px", color: "var(--ink-muted)", fontStyle: "italic", minHeight: "60px" }}>
+                  {vanillaPlanLoading ? "Running EXPLAIN ANALYZE…" : "No plan available yet."}
+                </div>
+              )}
+            </div>
+
             {(activeTab === "Demo Scenarios" || activeTab === "Engine2") && (
-              <button className="run-btn" onClick={handleRun} disabled={isRunning}
+              <button className="run-btn" onClick={() => handleRun()} disabled={isRunning}
                 style={{ marginTop: "2px" }}>
                 {isRunning ? "Running..." : "Run Query"}
               </button>
             )}
+
+            {/* Under the bottom "Run Query" (Demo Scenarios / Engine2) */}
+            {(activeTab === "Demo Scenarios" || activeTab === "Engine2") && planToggleBtn}
 
             {activeTab !== "Demo Scenarios" && activeTab !== "Engine2" && (
               <div className="select-row">
@@ -592,7 +749,7 @@ export default function App() {
                       <div className="empty-title">Processing query...</div>
                     </div>
                   ) : hasRun && scenarioData[activeEngine] ? (
-                    <ScenarioPipeline data={scenarioData[activeEngine]} activeNode={scenarioNode} setActiveNode={setScenarioNode} />
+                    <ScenarioPipeline data={scenarioData[activeEngine]} activeNode={scenarioNode} setActiveNode={setScenarioNode} viewMode={viewMode} />
                   ) : (
                     <div className="empty-state">
                       <div className="empty-text">Click <strong>Run Query</strong> to compare engines</div>
@@ -621,7 +778,7 @@ export default function App() {
                       <div className="empty-title">Processing query...</div>
                     </div>
                   ) : hasRun && scenarioData[activeStrategy] ? (
-                    <ScenarioPipeline data={scenarioData[activeStrategy]} activeNode={scenarioNode} setActiveNode={setScenarioNode} />
+                    <ScenarioPipeline data={scenarioData[activeStrategy]} activeNode={scenarioNode} setActiveNode={setScenarioNode} viewMode={viewMode} />
                   ) : (
                     <div className="empty-state">
                       <div className="empty-text">Click <strong>Run Query</strong> to compare strategies</div>
@@ -650,7 +807,7 @@ export default function App() {
                       <div className="empty-title">Processing query...</div>
                     </div>
                   ) : hasRun && scenarioData[activeOption] ? (
-                    <ScenarioPipeline data={scenarioData[activeOption]} activeNode={scenarioNode} setActiveNode={setScenarioNode} useCombineArrow={activeOption.includes("Combiner On")} />
+                    <ScenarioPipeline data={scenarioData[activeOption]} activeNode={scenarioNode} setActiveNode={setScenarioNode} useCombineArrow={activeOption.includes("Combiner On")} viewMode={viewMode} />
                   ) : (
                     <div className="empty-state">
                       <div className="empty-text">Click <strong>Run Query</strong> to compare options</div>
@@ -712,7 +869,7 @@ export default function App() {
                     ) : (
                       <>
                         <ScenarioPipeline data={eng2Data} activeNode={activeNode} setActiveNode={setActiveNode}
-                          useCombineArrow={eng2Integration.comb} hideResult hideTiming />
+                          useCombineArrow={eng2Integration.comb} hideResult hideTiming viewMode={viewMode} />
                         <div className="comp-bottom-row">
                           {eng2Data.output.rows.length > 0 && (
                             <div className="comp-shared-result">
@@ -893,7 +1050,7 @@ export default function App() {
                                   <div style={{ maxHeight: "250px", overflowY: "auto" }}>
                                     <ScenarioPipeline data={d} activeNode={scenarioNode} setActiveNode={setScenarioNode}
                                       useCombineArrow={true}
-                                      hideResult hideTiming />
+                                      hideResult hideTiming viewMode={viewMode} />
                                     <div className="node-detail" style={{ borderColor: "var(--accent-violet)", backgroundColor: "rgba(139, 92, 246, 0.06)", marginTop: "4px" }}>
                                       <div style={{ fontSize: "9px", fontWeight: 700, color: "var(--accent-violet)", marginBottom: "2px" }}>Combined SQL</div>
                                       <SqlBlock sql={d.combinedSql} fontSize={10} tempColors={tempColors} />
@@ -903,13 +1060,13 @@ export default function App() {
                                   <div style={{ maxHeight: "250px", overflowY: "auto" }}>
                                     <ScenarioPipeline data={d} activeNode={scenarioNode} setActiveNode={setScenarioNode}
                                       useCombineArrow={false}
-                                      hideResult hideTiming />
+                                      hideResult hideTiming viewMode={viewMode} />
                                     <div style={{ display: "flex", flexDirection: "column", gap: "4px", marginTop: "4px" }}>
                                       {d.rounds.map((round) => (
                                         <div key={round.roundNum} className="node-detail"
                                           style={{ borderColor: round.color, backgroundColor: `${round.color}10` }}>
                                           <div style={{ fontSize: "9px", fontWeight: 700, color: round.color, marginBottom: "2px" }}>{round.subSqlTitle}</div>
-                                          <SqlBlock sql={round.subSql} fontSize={10} tempColors={tempColors} />
+                                          <RoundDetail round={round} viewMode={viewMode} fontSize={10} tempColors={tempColors} />
                                         </div>
                                       ))}
                                     </div>
@@ -918,7 +1075,7 @@ export default function App() {
                               ) : (
                                 <ScenarioPipeline data={d} activeNode={scenarioNode} setActiveNode={setScenarioNode}
                                   useCombineArrow={false}
-                                  hideResult hideTiming />
+                                  hideResult hideTiming viewMode={viewMode} />
                               )
                             ) : null}
                           </div>
@@ -1009,7 +1166,7 @@ export default function App() {
                 if (!round) return null;
                 return (
                   <div className="node-detail" style={{ borderColor: round.color, backgroundColor: `${round.color}10` }}>
-                    <SqlBlock sql={round.subSql} fontSize={11} tempColors={tempColors} />
+                    <RoundDetail round={round} viewMode={viewMode} fontSize={11} tempColors={tempColors} />
                   </div>
                 );
               })()}
