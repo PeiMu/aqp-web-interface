@@ -87,11 +87,12 @@ function parseMiddlewareOutput(stdout) {
     });
   }
 
-  /* Final SQL */
-  const finalMatch = stdout.match(/=== Final Generated (?:Sub-)?SQL ===\n([\s\S]*?)(?=\[IRQuerySplitter\] =+)/);
+  /* Final SQL — stop before the "=== Final Sub-Query Plan ===" block (emitted
+     by --explain) so the plan text doesn't leak into the SQL shown in SQL mode. */
+  const finalMatch = stdout.match(/=== Final Generated (?:Sub-)?SQL ===\n([\s\S]*?)(?=\n=== Final Sub-Query Plan ===|\[IRQuerySplitter\] =+)/);
   if (!finalMatch) {
     /* Fallback: grab everything between header and Query Results */
-    const fallback = stdout.match(/=== Final Generated (?:Sub-)?SQL ===\n([\s\S]*?)(?=\n=== Query Results ===|\n={3,})/);
+    const fallback = stdout.match(/=== Final Generated (?:Sub-)?SQL ===\n([\s\S]*?)(?=\n=== Final Sub-Query Plan ===|\n=== Query Results ===|\n={3,})/);
     if (fallback) result.finalSql = fallback[1].trim();
   } else {
     result.finalSql = finalMatch[1].trim();
@@ -147,7 +148,42 @@ function parseMiddlewareOutput(stdout) {
     }
   }
 
+  /* Sub-query plans (only present when run with --explain). One
+     "=== Sub-Query Plan ===" block per iteration round (in order), plus one
+     "=== Final Sub-Query Plan ===" block for the final round. Attach each
+     plan to its round as `plan`; the frontend renders it in "Show Plan" mode. */
+  const planRegex = /=== Sub-Query Plan ===\n([\s\S]*?)\n=== End Sub-Query Plan ===/g;
+  const subPlans = [];
+  let pm;
+  while ((pm = planRegex.exec(stdout)) !== null) subPlans.push(pm[1].trim());
+  subPlans.forEach((p, i) => { if (result.rounds[i]) result.rounds[i].plan = p; });
+  const finalPlanMatch = stdout.match(
+    /=== Final Sub-Query Plan ===\n([\s\S]*?)\n=== End Sub-Query Plan ===/
+  );
+  if (finalPlanMatch && result.rounds.length > 0) {
+    result.rounds[result.rounds.length - 1].plan = finalPlanMatch[1].trim();
+  }
+
   return result;
+}
+
+/* ─── Vanilla plan extractor ────────────────────────────────────────────────
+   When we run "EXPLAIN ANALYZE <query>" through the middleware in --split=none
+   (direct execution) mode, the plan comes back inside the "=== Query Results ==="
+   block. Pull out that raw text and tidy the engine-specific framing:
+     - DuckDB returns a 2-col row whose first cell is the literal "analyzed_plan"
+       and whose last printed line is a lone "|" cell terminator.
+     - Postgres-family engines return one plan line per row, each pipe-terminated. */
+function extractPlanText(stdout) {
+  const m = stdout.match(/=== Query Results ===\nRows: \d+, Columns: \d+\n([\s\S]*?)\n={20,}/);
+  if (!m) return "";
+  let text = m[1];
+  text = text.replace(/^analyzed_plan\|/, "");   /* DuckDB column label */
+  text = text.replace(/^QUERY PLAN\|/, "");        /* Postgres column label */
+  /* Strip the ASCII pipe that terminates each printed cell/row. DuckDB's tree
+     uses box-drawing chars (│), not ASCII |, so this only removes framing. */
+  text = text.split("\n").map((l) => l.replace(/\|\s*$/, "")).join("\n");
+  return text.replace(/\n+$/, "");
 }
 
 /* ─── Query file reader ────────────────────────────────────────────────────── */
@@ -164,7 +200,7 @@ app.get("/api/query/:name", (req, res) => {
 /* ─── API endpoint ──────────────────────────────────────────────────────────── */
 app.post("/api/run", (req, res) => {
   const { engine = "duckdb", split = "relation-center", query = "1a", customSql,
-          cardinalityEstimator = true, mergeSubPlan = false } = req.body;
+          cardinalityEstimator = true, mergeSubPlan = false, explain = false } = req.body;
 
   const splitArg = SPLIT_MAP[split] || "relationshipcenter";
   const dbArg = ENGINE_DB[engine] || ENGINE_DB.duckdb;
@@ -196,6 +232,10 @@ app.post("/api/run", (req, res) => {
 
   /* Sub-SQL Combiner: OFF by default, add flag to enable */
   if (mergeSubPlan) args.push("--combine-sub-plans");
+
+  /* Show Plan: OFF by default. Emits EXPLAIN ANALYZE per sub-SQL (extra
+     execution), only requested when the UI is in "Show Plan" mode. */
+  if (explain) args.push("--explain");
 
   args.push(queryFile);
 
@@ -307,6 +347,56 @@ app.post("/api/run", (req, res) => {
     } catch (parseErr) {
       res.status(500).json({ error: "Failed to parse output", raw: stdout });
     }
+  });
+});
+
+/* ─── Vanilla query plan ──────────────────────────────────────────────────────
+   Returns the EXPLAIN ANALYZE plan of the *whole* (un-split) query. We prepend
+   "EXPLAIN ANALYZE" to the SQL and run it through the middleware in --split=none
+   (direct execution) mode, then extract the plan text from the results block. */
+app.post("/api/vanilla-plan", (req, res) => {
+  const { engine = "duckdb", customSql, query = "1a" } = req.body;
+  const dbArg = ENGINE_DB[engine] || ENGINE_DB.duckdb;
+
+  /* Resolve the SQL: custom text if provided, otherwise the benchmark file. */
+  let sqlText;
+  if (customSql && customSql.trim()) {
+    sqlText = customSql.trim();
+  } else {
+    try {
+      sqlText = readFileSync(path.join(DATASETS.job.dir, "queries", `${query}.sql`), "utf-8").trim();
+    } catch {
+      return res.status(404).json({ error: "Query file not found" });
+    }
+  }
+  sqlText = sqlText.replace(/;\s*$/, "");   /* drop trailing semicolon */
+
+  const tmpFile = path.join(tmpdir(), `aqp_vanilla_${Date.now()}.sql`);
+  writeFileSync(tmpFile, `EXPLAIN ANALYZE ${sqlText}`);
+
+  const args = [
+    `--engine=${engine}`,
+    `--db=${dbArg}`,
+    `--schema=${DATASETS.job.schema}`,
+    `--fkeys=${DATASETS.job.fkeys}`,
+    "--split=none",
+    tmpFile,
+  ];
+
+  const execEnv = engine === "opengauss"
+    ? { ...process.env, LD_LIBRARY_PATH: path.join(process.env.HOME, "gauss_compat_libs") + (process.env.LD_LIBRARY_PATH ? ":" + process.env.LD_LIBRARY_PATH : "") }
+    : process.env;
+
+  execFile(AQP_BIN, args, { timeout: 120000, maxBuffer: 10 * 1024 * 1024, env: execEnv }, (err, stdout, stderr) => {
+    try { unlinkSync(tmpFile); } catch {}
+    if (err && (!stdout || !stdout.includes("=== Query Results ==="))) {
+      return res.status(500).json({ error: (stderr || "").trim() || err.message });
+    }
+    const plan = extractPlanText(stdout || "");
+    if (!plan) {
+      return res.status(500).json({ error: "No plan returned for this query" });
+    }
+    res.json({ plan });
   });
 });
 
