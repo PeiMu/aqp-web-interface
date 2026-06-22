@@ -227,6 +227,14 @@ app.post("/api/run", (req, res) => {
     "--timing",
   ];
 
+  /* Helper DB for planning: node-based split on non-DuckDB engines needs the
+     DuckDB database; MariaDB with other splits uses PostgreSQL as estimator. */
+  if (splitArg === "nodebased" && engine !== "duckdb") {
+    args.push(`--helper-db-path=${ENGINE_DB.duckdb}`);
+  } else if (engine === "mariadb") {
+    args.push(`--helper-db-path=${ENGINE_DB.postgresql}`, "--estimator=postgres");
+  }
+
   /* Cardinality Estimator: ON by default, add flag to disable */
   if (!cardinalityEstimator) args.push("--no-update-temp-card");
 
