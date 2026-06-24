@@ -76,7 +76,7 @@ const BOTTLENECK_COLORS = ["#DC2626", "#EA580C", "#CA8A04"];
    (a stack of ancestors). Returns timing tokens with char offsets so the
    "actual time=…" substring can be highlighted. */
 function postgresTimings(text) {
-  const re = /actual time=([\d.]+)\.\.([\d.]+)(?:\s+rows=\d+\s+loops=(\d+))?/;
+  const re = /actual time=([\d.]+)\.\.([\d.]+)(?:\s+rows=[\d.]+\s+loops=(\d+))?/;
   const nodes = [];
   let offset = 0;
   for (const line of text.split("\n")) {
