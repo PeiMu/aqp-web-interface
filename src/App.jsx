@@ -117,8 +117,17 @@ function findPlanTimings(text) {
   }
   if (duck.length) return duck;
 
-  /* Postgres / Umbra / OpenGauss. */
+  /* PostgreSQL / OpenGauss: "actual time=start..end". */
   if (/actual time=/.test(text)) return postgresTimings(text);
+
+  /* Umbra: box-tree where each operator carries "time <N>" (its own self-time,
+     which Umbra itself flags with trailing stars, e.g. "time 55 ***"). */
+  const umbra = [];
+  const umbraRe = /\btime\s+(\d+)(?:\s*\*+)?/g;
+  while ((m = umbraRe.exec(text)) !== null) {
+    umbra.push({ start: m.index, end: m.index + m[0].length, value: parseInt(m[1], 10), unit: "ms" });
+  }
+  if (umbra.length) return umbra;
 
   /* MariaDB ANALYZE (best-effort): "r_total_time_ms": X. */
   const maria = [];
@@ -141,8 +150,9 @@ function PlanBlock({ text, fontSize = 10.5, maxHeight = 360 }) {
   /* Find each operator's time (format-specific), then highlight the 3 largest
      (>0) tokens in the tree, graduated red → orange → amber for #1 → #3. */
   const timings = findPlanTimings(text);
-  const ranked = timings
-    .filter((t) => t.value > 0)
+  /* Top-3 by self-time, shown even when times are 0 (so a bottleneck legend
+     always appears for every sub-query, not just the slow ones). */
+  const ranked = [...timings]
     .sort((a, b) => b.value - a.value)
     .slice(0, 3);
   const rankByStart = new Map(ranked.map((t, i) => [t.start, i]));
@@ -1134,15 +1144,6 @@ export default function App() {
                                     <ScenarioPipeline data={d} activeNode={scenarioNode} setActiveNode={setScenarioNode}
                                       useCombineArrow={false}
                                       hideResult hideTiming viewMode={viewMode} />
-                                    <div style={{ display: "flex", flexDirection: "column", gap: "4px", marginTop: "4px" }}>
-                                      {d.rounds.map((round) => (
-                                        <div key={round.roundNum} className="node-detail"
-                                          style={{ borderColor: round.color, backgroundColor: `${round.color}10` }}>
-                                          <div style={{ fontSize: "9px", fontWeight: 700, color: round.color, marginBottom: "2px" }}>{round.subSqlTitle}</div>
-                                          <RoundDetail round={round} viewMode={viewMode} fontSize={10} tempColors={tempColors} />
-                                        </div>
-                                      ))}
-                                    </div>
                                   </div>
                                 )
                               ) : (
@@ -1150,15 +1151,6 @@ export default function App() {
                                   <ScenarioPipeline data={d} activeNode={scenarioNode} setActiveNode={setScenarioNode}
                                     useCombineArrow={false}
                                     hideResult hideTiming viewMode={viewMode} />
-                                  <div style={{ display: "flex", flexDirection: "column", gap: "4px", marginTop: "4px" }}>
-                                    {d.rounds.map((round) => (
-                                      <div key={round.roundNum} className="node-detail"
-                                        style={{ borderColor: round.color, backgroundColor: `${round.color}10` }}>
-                                        <div style={{ fontSize: "9px", fontWeight: 700, color: round.color, marginBottom: "2px" }}>{round.subSqlTitle}</div>
-                                        <RoundDetail round={round} viewMode={viewMode} fontSize={10} tempColors={tempColors} />
-                                      </div>
-                                    ))}
-                                  </div>
                                 </div>
                               )
                             ) : null}
